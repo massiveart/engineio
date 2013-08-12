@@ -148,7 +148,7 @@ func (e *EngineIO) handshake(w io.Writer, sid string) (Connection, error) {
 		sid:          sid,
 		remove:       e.remove,
 		pingInterval: time.Duration(e.config.PingInterval),
-		queueLength:  e.config.QueueLength,
+		queueLength:  e.config.QueueLength + maxHeartbeat,
 	}
 	// polling queue flusher
 	go conn.flusher()

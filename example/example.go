@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"engineio"
+	"github.com/massiveart/engineio"
 )
 
 var page = []byte(`
