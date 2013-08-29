@@ -14,66 +14,6 @@ var (
 	ErrNotConnected   = errors.New("not connected")
 )
 
-// ServeMux is an HTTP request multiplexer. It matches the URL of each
-// incoming request against a list of registered patterns and calls the
-// handler for the pattern that most closely matches the URL.
-type ServeMux struct {
-	*http.ServeMux
-	Addr   string
-	Engine *EngineIO
-}
-
-// NewServeMux allocates and returns a new ServeMux. If config is nil,
-// the DefaultConfig is used.
-func NewServeMux(addr string, config *Config) *ServeMux {
-	return &ServeMux{
-		ServeMux: http.NewServeMux(),
-		Addr:     addr,
-		Engine:   NewEngineIO(config),
-	}
-}
-
-// Close closes the engineio server and all it's connections.
-func (s *ServeMux) Close() error {
-	return s.Engine.Close()
-}
-
-// ListenAndServe listens on the TCP network address srv.Addr and then
-// calls Serve to handle requests on incoming connections. If srv.Addr is
-// blank, ":http" is used.
-func (s *ServeMux) ListenAndServe() error {
-	addr := s.Addr
-	if addr == "" {
-		addr = ":http"
-	}
-
-	s.HandleFunc(DefaultEngineioPath, s.Engine.Handler)
-
-	return http.ListenAndServe(s.Addr, s)
-}
-
-// ConnectionFunc sets fn to be invoked when a new connection is
-// established. It passes the established connection as an argument to
-// the callback.
-func (s *ServeMux) ConnectionFunc(fn func(Connection)) {
-	s.Engine.connectionFunc = fn
-}
-
-// MessageFunc sets fn to be invoked when a message arrives. It passes
-// the established connection along with the received message datai as
-// arguments to the callback.
-func (s *ServeMux) MessageFunc(fn func(Connection, []byte) error) {
-	s.Engine.messageFunc = fn
-}
-
-// CloseFunc sets fn to be invoked when a session is considered to be
-// lost. It passes the established connection as an argument to the
-// callback. After disconnection the connection is considered to be
-// destroyed, and it should not be used anymore.
-func (s *ServeMux) CloseFunc(fn func(Connection)) {
-	s.Engine.closeFunc = fn
-}
-
 // EngineIO handles transport abstraction and provide the user a handfull
 // of callbacks to observe different events.
 type EngineIO struct {
@@ -223,4 +163,26 @@ func (e *EngineIO) Handler(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 	}
+}
+
+// ConnectionFunc sets fn to be invoked when a new connection is
+// established. It passes the established connection as an argument to
+// the callback.
+func (e *EngineIO) ConnectionFunc(fn func(Connection)) {
+	e.connectionFunc = fn
+}
+
+// MessageFunc sets fn to be invoked when a message arrives. It passes
+// the established connection along with the received message datai as
+// arguments to the callback.
+func (e *EngineIO) MessageFunc(fn func(Connection, []byte) error) {
+	e.messageFunc = fn
+}
+
+// CloseFunc sets fn to be invoked when a session is considered to be
+// lost. It passes the established connection as an argument to the
+// callback. After disconnection the connection is considered to be
+// destroyed, and it should not be used anymore.
+func (e *EngineIO) CloseFunc(fn func(Connection)) {
+	e.closeFunc = fn
 }

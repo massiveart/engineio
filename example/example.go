@@ -42,20 +42,23 @@ var page = []byte(`
 `)
 
 func main() {
-	server := engineio.NewServeMux("localhost:9090", nil)
+	enio := engineio.NewEngineIO(nil)
+	defer enio.Close()
 
-	server.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		w.Write(page)
-	})
+	enio.ConnectionFunc(func(conn engineio.Connection) {})
 
-	server.ConnectionFunc(func(conn engineio.Connection) {})
-
-	server.MessageFunc(func(conn engineio.Connection, data []byte) error {
+	enio.MessageFunc(func(conn engineio.Connection, data []byte) error {
 		_, err := conn.Write(data)
 		return err
 	})
 
-	server.CloseFunc(func(conn engineio.Connection) {})
+	enio.CloseFunc(func(conn engineio.Connection) {})
 
-	log.Fatal(server.ListenAndServe())
+	server := http.NewServeMux()
+	server.HandleFunc(engineio.DefaultEngineioPath, enio.Handler)
+	server.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		w.Write(page)
+	})
+
+	log.Fatal(http.ListenAndServe("localhost:9090", server))
 }
