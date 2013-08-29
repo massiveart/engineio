@@ -32,19 +32,23 @@ type packet struct {
 	Data    []byte
 }
 
-var packetType = map[byte]string{
-	'0': openID,
-	'1': closeID,
-	'2': pingID,
-	'3': pongID,
-	'4': messageID,
-	'5': upgradeID,
-	'6': noopID,
-}
+var (
+	packetType = map[byte]string{
+		'0': openID,
+		'1': closeID,
+		'2': pingID,
+		'3': pongID,
+		'4': messageID,
+		'5': upgradeID,
+		'6': noopID,
+	}
 
-var internalType = map[byte]string{
-	'9': heartbeatID,
-}
+	internalType = map[byte]string{
+		'9': heartbeatID,
+	}
+
+	sep = []byte(":")
+)
 
 // decode decodes the polling payload. decode accepts packetType
 // only.
@@ -52,31 +56,33 @@ func decode(data []byte) ([]packet, error) {
 	packets := make([]packet, 0)
 
 	for {
-		elems := bytes.Split(data, []byte(":"))
-		m := len(elems)
-		if len(elems) < 2 {
+		i := bytes.Index(data, sep)
+		if i == -1 {
 			return nil, fmt.Errorf("short read")
 		}
-		n, err := strconv.Atoi(string(elems[0]))
+		n, err := strconv.Atoi(string(data[:i]))
 		if err != nil {
 			return nil, fmt.Errorf("ignoring payload")
 		}
 
-		t, found := packetType[elems[1][0]]
+		data = data[i+1:]
+		t, found := packetType[data[0]]
 		if !found {
 			return nil, fmt.Errorf("unknown packet type")
 		}
 
+		if len(data) < n {
+			return nil, fmt.Errorf("malformed packet")
+		}
 		packets = append(packets, packet{
 			Type: t,
-			Data: elems[1][1:n],
+			Data: data[1:n],
 		})
 
-		if m > 2 {
-			data = data[len(elems[0])+n+1:]
-		} else {
+		if len(data) == n {
 			break
 		}
+		data = data[n:]
 	}
 
 	return packets, nil
