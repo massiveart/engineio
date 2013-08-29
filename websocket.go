@@ -166,7 +166,7 @@ func (c *websocketConn) reader() (err error) {
 		case messageID:
 			if c.messageFn != nil {
 				if err = c.messageFn(c, p.Data); err != nil {
-					return
+					//return
 				}
 			}
 		}

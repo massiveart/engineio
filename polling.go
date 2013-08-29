@@ -171,7 +171,7 @@ func (c *pollingConn) Close() error {
 	if !c.upgraded {
 		select {
 		case c.remove <- c.sid:
-		default: // TODO
+		default:
 		}
 	}
 
@@ -208,7 +208,6 @@ func (c *pollingConn) encode(p packet) []byte {
 	return append([]byte(ndata), data...)
 }
 
-// TODO: add heartbeat limit
 func (c *pollingConn) flusher() {
 	buf := bytes.NewBuffer(nil)
 	heartbeats := 0
@@ -262,20 +261,28 @@ func (c *pollingConn) flusher() {
 
 		if writer != nil {
 			if _, err := writer.Write(buf.Bytes()); err != nil {
-				// TODO
-				panic(err)
+				c.Close()
+				return
 			}
 			buf.Reset()
 			heartbeats = 0
 		} else {
 			if heartbeats >= maxHeartbeat-1 {
-				// TODO: kill the connection!
+				c.Close()
+				return
+			}
+
+			c.rwmu.Lock()
+			if !c.connected {
+				c.rwmu.Unlock()
+				return
 			}
 			select {
 			case c.queue <- packet{Type: heartbeatID}:
 
-			default: // TODO
+			default:
 			}
+			c.rwmu.Unlock()
 		}
 	}
 }
