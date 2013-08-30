@@ -178,10 +178,10 @@ func (c *pollingConn) Close() error {
 		case c.remove <- c.sid:
 		default:
 		}
-	}
 
-	if c.closeFn != nil {
-		c.closeFn(c)
+		if c.closeFn != nil {
+			c.closeFn(c)
+		}
 	}
 
 	return nil

@@ -128,12 +128,7 @@ func (c *websocketConn) encode(p packet) []byte {
 
 // reader closes if a read or write error happens.
 func (c *websocketConn) reader() (err error) {
-	defer func() {
-		select {
-		case c.closeConnection <- true:
-		default:
-		}
-	}()
+	defer c.Close()
 
 	var data []byte
 	for {
@@ -171,11 +166,10 @@ func (c *websocketConn) reader() (err error) {
 		case messageID:
 			if c.messageFn != nil {
 				if err = c.messageFn(c, p.Data); err != nil {
-					//return
+					return
 				}
 			}
 		}
-
 	}
 }
 
