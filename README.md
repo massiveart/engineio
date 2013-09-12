@@ -16,7 +16,7 @@ $ go get github.com/massiveart/engineio
 
 # Transports
 
-- `polling`: XHR polling transport.
+- `polling`: XHR/JSONP polling transport.
 - `websocket`: WebSocket transport.
 
 # Usage

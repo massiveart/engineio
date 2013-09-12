@@ -33,6 +33,7 @@ var (
 
 type packet struct {
 	connNum int64 // connection number frame bit
+	index   int   // jsonp callback index (if used)
 	Type    string
 	Data    []byte
 }

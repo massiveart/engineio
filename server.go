@@ -10,6 +10,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -68,7 +69,7 @@ func (e EngineIO) remover() {
 
 // handshake returns a polling connection and an error if any.
 // TODO: implement websocket handshake
-func (e *EngineIO) handshake(w io.Writer, sid string) (Connection, error) {
+func (e *EngineIO) handshake(w io.Writer, sid string, index int) (Connection, error) {
 	var payload = struct {
 		Sid          string   `json:"sid"`
 		Upgrades     []string `json:"upgrades"`
@@ -90,17 +91,20 @@ func (e *EngineIO) handshake(w io.Writer, sid string) (Connection, error) {
 		queue:        make(chan packet, e.config.QueueLength+maxHeartbeat),
 		connections:  make(map[int64]*pollingWriter),
 		connected:    true,
+		index:        index,
 		sid:          sid,
 		remove:       e.remove,
 		pingInterval: time.Duration(e.config.PingInterval),
 		queueLength:  e.config.QueueLength + maxHeartbeat,
 	}
+
 	// polling queue flusher
 	go conn.flusher()
 
 	_, err = w.Write(conn.encode(packet{
-		Type: openID,
-		Data: data,
+		index: index,
+		Type:  openID,
+		Data:  data,
 	}))
 	if err != nil {
 		return nil, err
@@ -110,13 +114,23 @@ func (e *EngineIO) handshake(w io.Writer, sid string) (Connection, error) {
 }
 
 func (e *EngineIO) Handler(w http.ResponseWriter, req *http.Request) {
-	sid := string(req.FormValue("sid"))
+	var err error
+	sid := req.FormValue("sid")
+	jindex := req.FormValue("j")
+	index := -1
+	if jindex != "" {
+		index, err = strconv.Atoi(jindex)
+		if err != nil {
+			http.Error(w, "atoi: "+err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 
 	switch uint(len(sid)) {
 	case 0:
 		sid = newSessionId()
 
-		conn, err := e.handshake(w, sid)
+		conn, err := e.handshake(w, sid, index)
 		if err != nil {
 			http.Error(w, "handshake: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -163,6 +177,7 @@ func (e *EngineIO) Handler(w http.ResponseWriter, req *http.Request) {
 		}
 
 		// polling connection
+		conn.(*pollingConn).index = index
 		if err := conn.handle(w, req); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

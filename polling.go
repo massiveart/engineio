@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-const maxHeartbeat = 5
+const maxHeartbeat = 10
 
 type pollingWriter struct {
 	w         io.Writer
@@ -43,6 +43,7 @@ type pollingConn struct {
 	queue       chan packet
 	connected   bool // indicates if the connection has been disconnected
 	upgraded    bool // indicates if the connection has been upgraded
+	index       int  // jsonp callback index (if jsonp is used)
 	connNum     int64
 	connections map[int64]*pollingWriter
 
@@ -55,10 +56,16 @@ type pollingConn struct {
 }
 
 // TODO: handle read/write timeout
-func (c *pollingConn) reader(dst io.Writer, src io.Reader) (err error) {
-	data, err := ioutil.ReadAll(src)
-	if err != nil {
-		return err
+//func (c *pollingConn) reader(dst io.Writer, src io.Reader) (err error) {
+func (c *pollingConn) reader(dst io.Writer, req *http.Request) (err error) {
+	data := []byte{}
+	if c.index == -1 {
+		data, err = ioutil.ReadAll(req.Body)
+		if err != nil {
+			return err
+		}
+	} else {
+		data = []byte(req.FormValue("d"))
 	}
 
 	packets, err := decode(data)
@@ -72,7 +79,10 @@ func (c *pollingConn) reader(dst io.Writer, src io.Reader) (err error) {
 			return nil
 
 		case pingID:
-			_, err = dst.Write(c.encode(packet{Type: pongID}))
+			_, err = dst.Write(c.encode(packet{
+				index: c.index,
+				Type:  pongID,
+			}))
 			if err != nil {
 				return err
 			}
@@ -95,7 +105,7 @@ func (c *pollingConn) reader(dst io.Writer, src io.Reader) (err error) {
 
 func (c *pollingConn) handle(w http.ResponseWriter, req *http.Request) (err error) {
 	if req.Method == "POST" {
-		return c.reader(w, req.Body)
+		return c.reader(w, req)
 	}
 
 	// add a fresh polling writer
@@ -129,6 +139,7 @@ Loop:
 			select {
 			case c.queue <- packet{
 				connNum: num,
+				index:   c.index,
 				Type:    pongID,
 			}:
 			default:
@@ -158,7 +169,11 @@ func (c *pollingConn) Write(data []byte) (int, error) {
 	}
 
 	select {
-	case c.queue <- packet{Type: messageID, Data: data}:
+	case c.queue <- packet{
+		index: c.index,
+		Type:  messageID,
+		Data:  data,
+	}:
 
 	default:
 		return 0, ErrQueueFull
@@ -198,6 +213,7 @@ func (c *pollingConn) upgrade(p packet) error {
 		return ErrNotConnected
 	}
 
+	p.index = c.index
 	select {
 	case c.queue <- p:
 
@@ -209,6 +225,14 @@ func (c *pollingConn) upgrade(p packet) error {
 
 func (c *pollingConn) encode(p packet) []byte {
 	data := append([]byte(p.Type), p.Data...)
+
+	if c.index != -1 {
+		ndata := fmt.Sprintf("%d:", len(data))
+		data = append([]byte(ndata), data...)
+		ndata = fmt.Sprintf("___eio[%d](%q);", c.index, data)
+		return []byte(ndata)
+	}
+
 	ndata := fmt.Sprintf("%d:", len(data))
 	return append([]byte(ndata), data...)
 }
@@ -283,7 +307,7 @@ func (c *pollingConn) flusher() {
 				return
 			}
 			select {
-			case c.queue <- packet{Type: heartbeatID}:
+			case c.queue <- packet{index: c.index, Type: heartbeatID}:
 
 			default:
 			}
