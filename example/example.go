@@ -55,7 +55,13 @@ func main() {
 	enio.CloseFunc(func(conn engineio.Connection) {})
 
 	server := http.NewServeMux()
-	server.HandleFunc(engineio.DefaultEngineioPath, enio.Handler)
+	handler := func() func(w http.ResponseWriter, req *http.Request) {
+		return func(w http.ResponseWriter, req *http.Request) {
+			enio.Handler(w, req, nil)
+		}
+	}
+
+	server.HandleFunc(engineio.DefaultEngineioPath, handler())
 	server.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		w.Write(page)
 	})
