@@ -113,7 +113,9 @@ func (e *EngineIO) handshake(w io.Writer, sid string, index int) (Connection, er
 	return conn, nil
 }
 
-func (e *EngineIO) Handler(w http.ResponseWriter, req *http.Request) {
+type AuthFunc func(*http.Request) bool
+
+func (e *EngineIO) Handler(w http.ResponseWriter, req *http.Request, fn AuthFunc) {
 	var err error
 	sid := req.FormValue("sid")
 	jindex := req.FormValue("j")
@@ -129,6 +131,13 @@ func (e *EngineIO) Handler(w http.ResponseWriter, req *http.Request) {
 	switch uint(len(sid)) {
 	case 0:
 		sid = newSessionId()
+
+		if fn != nil {
+			if !fn(req) {
+				http.Error(w, "not authorized", http.StatusUnauthorized)
+				return
+			}
+		}
 
 		conn, err := e.handshake(w, sid, index)
 		if err != nil {
