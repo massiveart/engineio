@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const maxHeartbeat = 10
@@ -104,6 +105,10 @@ func (c *pollingConn) reader(dst io.Writer, req *http.Request) (err error) {
 }
 
 func (c *pollingConn) handle(w http.ResponseWriter, req *http.Request) (err error) {
+	if c.index != -1 {
+		w.Header().Set("Content-Type", "application/xhtml+xml")
+	}
+
 	if req.Method == "POST" {
 		return c.reader(w, req)
 	}
@@ -225,15 +230,16 @@ func (c *pollingConn) upgrade(p packet) error {
 
 func (c *pollingConn) encode(p packet) []byte {
 	data := append([]byte(p.Type), p.Data...)
+	n := utf8.RuneCount(data)
 
 	if c.index != -1 {
-		ndata := fmt.Sprintf("%d:", len(data))
+		ndata := fmt.Sprintf("%d:", n)
 		data = append([]byte(ndata), data...)
 		ndata = fmt.Sprintf("___eio[%d](%q);", c.index, data)
 		return []byte(ndata)
 	}
 
-	ndata := fmt.Sprintf("%d:", len(data))
+	ndata := fmt.Sprintf("%d:", n)
 	return append([]byte(ndata), data...)
 }
 
